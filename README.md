@@ -93,5 +93,3 @@ COPY --from=build /app/dist /usr/share/nginx/html
 ## License
 
 MIT
-
----
