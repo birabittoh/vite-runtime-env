@@ -2,8 +2,8 @@ name: Rebuild image when nginx:alpine changes
 
 on:
   schedule:
-    # Daily at 05:17 UTC
-    - cron: '17 5 * * *'
+    # Daily at 05:18 UTC
+    - cron: '18 5 * * *'
   workflow_dispatch:
 
 permissions:
