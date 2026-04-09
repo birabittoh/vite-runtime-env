@@ -1,0 +1,102 @@
+name: Rebuild image when nginx:alpine changes
+
+on:
+  schedule:
+    # Daily at 05:17 UTC
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  actions: write
+
+concurrency:
+  group: rebuild-vite-runtime-env
+  cancel-in-progress: true
+
+jobs:
+  check-base:
+    runs-on: ubuntu-latest
+    outputs:
+      nginx_digest: ${{ steps.compare.outputs.nginx_digest }}
+      should_build: ${{ steps.compare.outputs.should_build }}
+    steps:
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Compare nginx:alpine digest with stored value
+        id: compare
+        env:
+          LAST_DIGEST: ${{ vars.NGINX_ALPINE_DIGEST }}
+        run: |
+          set -euo pipefail
+
+          CURRENT_DIGEST="$(crane digest nginx:alpine)"
+
+          echo "nginx_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+
+          if [ -z "${LAST_DIGEST:-}" ]; then
+            echo "No stored digest found; triggering initial build."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$CURRENT_DIGEST" != "$LAST_DIGEST" ]; then
+            echo "Digest changed: $LAST_DIGEST -> $CURRENT_DIGEST"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Digest unchanged: $CURRENT_DIGEST"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: check-base
+    if: needs.check-base.outputs.should_build == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          pull: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/${{ github.repository_owner }}/vite-runtime-env:latest
+
+      - name: Save current nginx digest in repository variable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NGINX_DIGEST: ${{ needs.check-base.outputs.nginx_digest }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$REPO/actions/variables/NGINX_ALPINE_DIGEST" \
+            -f name="NGINX_ALPINE_DIGEST" \
+            -f value="$NGINX_DIGEST" \
+          || gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$REPO/actions/variables" \
+            -f name="NGINX_ALPINE_DIGEST" \
+            -f value="$NGINX_DIGEST"

@@ -93,3 +93,18 @@ COPY --from=build /app/dist /usr/share/nginx/html
 ## License
 
 MIT
+
+---
+
+## Auto-update when `nginx:alpine` changes
+
+This repository includes a GitHub Actions workflow at `.github/workflows/rebuild-on-nginx-alpine.yml`.
+
+How it works:
+
+1. Runs daily (and manually via `workflow_dispatch`).
+2. Checks the current digest of `nginx:alpine`.
+3. Compares it with the last digest saved in repository variable `NGINX_ALPINE_DIGEST`.
+4. Builds and pushes `ghcr.io/<owner>/vite-runtime-env:latest` **only if the digest changed**.
+
+This minimizes GitHub compute time because most runs only execute the lightweight digest check.
