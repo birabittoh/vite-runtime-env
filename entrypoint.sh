@@ -13,23 +13,18 @@ if [ -z "$ENV_KEYS" ]; then
 else
   echo "[vite-runtime-env] Generating env.js..."
 
-  echo "window.__ENV__ = {" > "$OUTPUT_FILE"
-
-  FIRST=1
+  # Warn about keys that are not set
   for key in $(echo "$ENV_KEYS" | tr ',' ' '); do
-    value=$(printenv "$key" | sed 's/"/\\"/g')
-
-    if [ $FIRST -eq 1 ]; then
-      FIRST=0
-    else
-      echo "," >> "$OUTPUT_FILE"
-    fi
-
-    printf "  %s: \"%s\"" "$key" "$value" >> "$OUTPUT_FILE"
+    printenv "$key" > /dev/null 2>&1 || echo "[vite-runtime-env] Warning: $key is not set, using empty string."
   done
 
-  echo "" >> "$OUTPUT_FILE"
-  echo "};" >> "$OUTPUT_FILE"
+  # Build the object in a single jq call using the $ENV builtin
+  obj=$(jq -n '
+    (env.ENV_KEYS | split(",")) as $keys |
+    [ $keys[] | {key: ., value: ($ENV[.] // "")} ] | from_entries
+  ')
+
+  printf 'window.__ENV__ = %s;\n' "$obj" > "$OUTPUT_FILE"
 
   echo "[vite-runtime-env] env.js generated:"
   cat "$OUTPUT_FILE"

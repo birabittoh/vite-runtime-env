@@ -56,7 +56,9 @@ COPY --from=build /app/dist /usr/share/nginx/html
 ```yaml
 services:
   frontend:
+    container_name: my-app
     image: my-app:latest
+    restart: unless-stopped
     ports:
       - "8080:80"
     environment:
@@ -67,3 +69,5 @@ services:
       - API_URL=https://api.example.com
       - APP_ENV=production
 ```
+
+> The healthcheck is defined in the base image and is inherited automatically — no need to redeclare it in Compose.
