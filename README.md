@@ -8,54 +8,15 @@ Vite embeds environment variables at build time, making Docker images environmen
 
 ## Solution
 
-This image generates a `/env.js` file at container startup using environment variables.
-
-No rebuild required.
+This image generates a `/env.js` file at container startup using environment variables, no rebuild required.
 
 ---
 
 ## Usage
 
-### 1. Build your Vite app
+### 1. Read /env.js from your frontend
 
-```Dockerfile
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY . .
-RUN npm ci && npm run build
-```
-
-### 2. Use this image
-
-```Dockerfile
-FROM ghcr.io/birabittoh/vite-runtime-env:latest
-
-COPY --from=build /app/dist /usr/share/nginx/html
-```
-
----
-
-## Example usage (`docker-compose.yml`)
-
-```yaml
-services:
-  frontend:
-    image: my-app:latest
-    ports:
-      - "8080:80"
-    environment:
-      # Required: List keys to expose in /env.js
-      - ENV_KEYS=API_URL,APP_ENV
-      # Values for the keys above
-      - API_URL=https://api.example.com
-      - APP_ENV=production
-```
-
----
-
-## Frontend integration
-
-Add this to `index.html` to load environment variables only if they are configured:
+Add this to `index.html`:
 
 ```html
 <script>
@@ -78,17 +39,8 @@ const config = window.__ENV__ || {
 console.log(config.API_URL);
 ```
 
----
 
-## Notes
-
-* Only variables listed in `ENV_KEYS` will be exposed in `/env.js`
-* If `ENV_KEYS` is not provided, `/env.js` will not be generated
-* Missing variables in `ENV_KEYS` default to empty string
-
----
-
-## Example Dockerfile (full multi-stage)
+### 2. Build your docker image
 
 ```Dockerfile
 # Build stage
@@ -101,6 +53,23 @@ RUN npm ci && npm run build
 FROM ghcr.io/birabittoh/vite-runtime-env:latest
 
 COPY --from=build /app/dist /usr/share/nginx/html
+```
+
+### 3. Change your environment variables without rebuilding
+
+```yaml
+services:
+  frontend:
+    image: my-app:latest
+    ports:
+      - "8080:80"
+    environment:
+      # List keys to expose
+      - ENV_KEYS=API_URL,APP_ENV
+
+      # Set values for the exposed keys
+      - API_URL=https://api.example.com
+      - APP_ENV=production
 ```
 
 ---
