@@ -34,6 +34,23 @@ COPY --from=build /app/dist /usr/share/nginx/html
 ```
 
 ---
+
+## Example usage (`docker-compose.yml`)
+
+```yaml
+services:
+  frontend:
+    image: my-app:latest
+    ports:
+      - "8080:80"
+    environment:
+      # Required: List keys to expose in /env.js
+      - ENV_KEYS=API_URL,APP_ENV
+      # Values for the keys above
+      - API_URL=https://api.example.com
+      - APP_ENV=production
+```
+
 ---
 
 ## Frontend integration
