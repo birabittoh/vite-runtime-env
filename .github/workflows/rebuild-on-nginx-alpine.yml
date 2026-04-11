@@ -14,6 +14,9 @@ concurrency:
   group: rebuild-vite-runtime-env
   cancel-in-progress: true
 
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
 jobs:
   check-base:
     runs-on: ubuntu-latest
@@ -40,8 +43,7 @@ jobs:
           echo "nginx_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
 
           # Attempt to fetch the digest from the existing image's labels
-          IMAGE_URL="ghcr.io/${{ github.repository_owner }}/vite-runtime-env:latest"
-          LAST_DIGEST=$(crane config "$IMAGE_URL" | jq -r '.config.Labels["org.opencontainers.image.base.digest"] // empty' || echo "")
+          LAST_DIGEST=$(crane config "${{ env.IMAGE_NAME }}:latest" | jq -r '.config.Labels["org.opencontainers.image.base.digest"] // empty' || echo "")
 
           if [ -z "$LAST_DIGEST" ]; then
             echo "No stored digest found in image labels; triggering initial build."
@@ -85,6 +87,6 @@ jobs:
           push: true
           pull: true
           platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/${{ github.repository_owner }}/vite-runtime-env:latest
+          tags: ${{ env.IMAGE_NAME }}:latest
           labels: |
             org.opencontainers.image.base.digest=${{ needs.check-base.outputs.nginx_digest }}
