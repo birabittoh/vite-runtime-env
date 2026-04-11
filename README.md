@@ -4,19 +4,17 @@ Docker base image to inject environment variables at runtime into static fronten
 
 ## Why?
 
-Vite embeds environment variables at build time, making Docker images environment-specific. This image generates a `/env.js` file at container startup using environment variables, no rebuild required.
-
----
+Vite embeds environment variables at build time, making Docker images environment-specific. This image generates a `/env.js` file at container startup that reads environment variables at runtime, no rebuild required.
 
 ## Quick start
 
-Feed [this file](/README.md) to your favorite coding agent and it'll set it up for you.
+Feed [this file](https://raw.githubusercontent.com/birabittoh/vite-runtime-env/refs/heads/main/README.md) to your favorite coding agent and it'll set it up for you.
 
 ## Usage
 
 ### 1. Load the generated file
 
-Load `/env.js` from your frontend:
+Load `/env.js`:
 
 ```html
 <script>
@@ -27,7 +25,7 @@ Load `/env.js` from your frontend:
 </script>
 ```
 
-Access variables in your app safely:
+Access variables:
 
 ```js
 const config = window.__ENV__ || {
@@ -37,7 +35,6 @@ const config = window.__ENV__ || {
 
 console.log(config.API_URL);
 ```
-
 
 ### 2. Build your docker image
 
@@ -54,7 +51,7 @@ FROM ghcr.io/birabittoh/vite-runtime-env:latest
 COPY --from=build /app/dist /usr/share/nginx/html
 ```
 
-### 3. Change your environment variables without rebuilding
+### 3. Set your environment variables
 
 ```yaml
 services:
@@ -63,16 +60,10 @@ services:
     ports:
       - "8080:80"
     environment:
-      # List keys to expose
+      # List keys to be exposed
       - ENV_KEYS=API_URL,APP_ENV
 
-      # Set values for the exposed keys
+      # Set their values
       - API_URL=https://api.example.com
       - APP_ENV=production
 ```
-
----
-
-## License
-
-MIT
