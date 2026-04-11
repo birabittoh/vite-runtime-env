@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
   packages: write
-  actions: write
 
 concurrency:
   group: rebuild-vite-runtime-env
@@ -25,19 +24,27 @@ jobs:
       - name: Install crane
         uses: imjasonh/setup-crane@v0.4
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Compare nginx:alpine digest with stored value
         id: compare
-        env:
-          LAST_DIGEST: ${{ vars.NGINX_ALPINE_DIGEST }}
         run: |
           set -euo pipefail
 
           CURRENT_DIGEST="$(crane digest nginx:alpine)"
-
           echo "nginx_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
 
-          if [ -z "${LAST_DIGEST:-}" ]; then
-            echo "No stored digest found; triggering initial build."
+          # Attempt to fetch the digest from the existing image's labels
+          IMAGE_URL="ghcr.io/${{ github.repository_owner }}/vite-runtime-env:latest"
+          LAST_DIGEST=$(crane config "$IMAGE_URL" | jq -r '.config.Labels["org.opencontainers.image.base.digest"] // empty' || echo "")
+
+          if [ -z "$LAST_DIGEST" ]; then
+            echo "No stored digest found in image labels; triggering initial build."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -79,24 +86,5 @@ jobs:
           pull: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/${{ github.repository_owner }}/vite-runtime-env:latest
-
-      - name: Save current nginx digest in repository variable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          NGINX_DIGEST: ${{ needs.check-base.outputs.nginx_digest }}
-        run: |
-          set -euo pipefail
-
-          gh api \
-            --method PATCH \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/$REPO/actions/variables/NGINX_ALPINE_DIGEST" \
-            -f name="NGINX_ALPINE_DIGEST" \
-            -f value="$NGINX_DIGEST" \
-          || gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/$REPO/actions/variables" \
-            -f name="NGINX_ALPINE_DIGEST" \
-            -f value="$NGINX_DIGEST"
+          labels: |
+            org.opencontainers.image.base.digest=${{ needs.check-base.outputs.nginx_digest }}
